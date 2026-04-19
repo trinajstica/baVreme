@@ -98,6 +98,15 @@
     min-width: 0;
 }
 
+.ba-vreme-hourly-current {
+    color: #53d8ff;
+    text-decoration: underline;
+}
+
+.ba-vreme-hourly-current-value {
+    color: #53d8ff;
+}
+
 .ba-vreme-hourly-value {
     opacity: 0.85;
     font-size: 1.1025em;

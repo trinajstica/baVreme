@@ -148,6 +148,32 @@ function formatClockTime(value) {
     return timePart.length >= 5 ? timePart.slice(0, 5) : String(value);
 }
 
+function getCurrentHourLabel(timezone) {
+    try {
+        const now = new Date();
+        const parts = new Intl.DateTimeFormat('en-US', {
+            timeZone: timezone || undefined,
+            hour12: false,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+        }).formatToParts(now);
+
+        const year = parts.find(part => part.type === 'year')?.value ?? '';
+        const month = parts.find(part => part.type === 'month')?.value ?? '';
+        const day = parts.find(part => part.type === 'day')?.value ?? '';
+        const hour = parts.find(part => part.type === 'hour')?.value ?? '';
+
+        if (!year || !month || !day || !hour)
+            return '';
+
+        return `${year}-${month}-${day}T${hour}`;
+    } catch (error) {
+        return '';
+    }
+}
+
 function parseCoordinate(value) {
     const parsedValue = Number.parseFloat(value);
     return Number.isFinite(parsedValue) ? parsedValue : null;
@@ -295,7 +321,7 @@ class WeatherDetailsDialog extends ModalDialog.ModalDialog {
         }
     }
 
-    _addHourlyRows(hourlyToday, tempUnit, windUnit) {
+    _addHourlyRows(hourlyToday, tempUnit, windUnit, currentHourLabel) {
         this._addSectionTitle('Hourly forecast (today)');
 
         if (!hourlyToday || hourlyToday.length === 0) {
@@ -308,6 +334,7 @@ class WeatherDetailsDialog extends ModalDialog.ModalDialog {
         }
 
         for (const hour of hourlyToday) {
+            const isCurrentHour = currentHourLabel && hour.time.startsWith(currentHourLabel);
             const row = new St.BoxLayout({
                 style_class: 'ba-vreme-hourly-row',
                 x_expand: true,
@@ -325,7 +352,7 @@ class WeatherDetailsDialog extends ModalDialog.ModalDialog {
 
             const titleLabel = new St.Label({
                 text: `${hour.shortTime ?? formatClockTime(hour.time)}  ${hour.summary ?? 'Unknown'}`,
-                style_class: 'ba-vreme-hourly-title',
+                style_class: `ba-vreme-hourly-title${isCurrentHour ? ' ba-vreme-hourly-current' : ''}`,
                 x_align: Clutter.ActorAlign.START,
                 x_expand: true,
             });
@@ -341,7 +368,7 @@ class WeatherDetailsDialog extends ModalDialog.ModalDialog {
                     `cloud ${formatPercentage(hour.cloudCover)}, ` +
                     `pressure ${formatPressure(hour.pressureMsl)}, ` +
                     `UV ${formatUvIndex(hour.uvIndex)}`,
-                style_class: 'ba-vreme-hourly-value',
+                style_class: `ba-vreme-hourly-value${isCurrentHour ? ' ba-vreme-hourly-current-value' : ''}`,
                 x_align: Clutter.ActorAlign.START,
                 x_expand: true,
             });
@@ -427,7 +454,8 @@ class WeatherDetailsDialog extends ModalDialog.ModalDialog {
         this._addInfoRow('Timezone', details.timezone ?? 'unknown');
 
         this._addForecastRows(forecast, tempUnit);
-        this._addHourlyRows(details.hourlyToday, tempUnit, windUnit);
+        const currentHourLabel = getCurrentHourLabel(details.timezone);
+        this._addHourlyRows(details.hourlyToday, tempUnit, windUnit, currentHourLabel);
 
         this._addSectionTitle('Data status');
         this._addInfoRow('Updated', formatUpdatedTimestamp(data.refreshedAt || current.time));
