@@ -5,6 +5,7 @@ import Soup from 'gi://Soup?version=3.0';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
@@ -103,6 +104,50 @@ function formatUpdatedTimestamp(value) {
     return `${localDate} ${localTime}`;
 }
 
+function formatTempWithUnit(value, unitLabel) {
+    return `${formatNumber(value)} \u00b0${unitLabel}`;
+}
+
+function formatWindWithUnit(value, unitLabel) {
+    return `${formatNumber(value)} ${unitLabel}`;
+}
+
+function formatPercentage(value) {
+    return value === null || value === undefined || Number.isNaN(value)
+        ? '--'
+        : `${Math.round(value)}%`;
+}
+
+function formatPressure(value) {
+    return value === null || value === undefined || Number.isNaN(value)
+        ? '--'
+        : `${Math.round(value)} hPa`;
+}
+
+function formatPrecipitation(value) {
+    return value === null || value === undefined || Number.isNaN(value)
+        ? '--'
+        : `${value.toFixed(1)} mm`;
+}
+
+function formatUvIndex(value) {
+    return value === null || value === undefined || Number.isNaN(value)
+        ? '--'
+        : `${Math.round(value * 10) / 10}`;
+}
+
+function formatClockTime(value) {
+    if (!value)
+        return '--';
+
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime()))
+        return date.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'});
+
+    const timePart = String(value).split('T')[1] ?? '';
+    return timePart.length >= 5 ? timePart.slice(0, 5) : String(value);
+}
+
 function parseCoordinate(value) {
     const parsedValue = Number.parseFloat(value);
     return Number.isFinite(parsedValue) ? parsedValue : null;
@@ -134,6 +179,262 @@ function sendAndRead(session, message) {
     });
 }
 
+const WeatherDetailsDialog = GObject.registerClass(
+class WeatherDetailsDialog extends ModalDialog.ModalDialog {
+    _init() {
+        super._init({styleClass: 'ba-vreme-details-dialog'});
+
+        this._scrollView = new St.ScrollView({
+            style_class: 'ba-vreme-details-scrollview',
+            overlay_scrollbars: true,
+            x_expand: true,
+            y_expand: true,
+        });
+        this._scrollView.set_policy(St.PolicyType.NEVER, St.PolicyType.AUTOMATIC);
+
+        this._contentBox = new St.BoxLayout({
+            vertical: true,
+            style_class: 'ba-vreme-details-content',
+            x_expand: true,
+        });
+
+        this._scrollView.set_child(this._contentBox);
+        this.contentLayout.add_child(this._scrollView);
+
+        this.addButton({
+            label: 'Close',
+            action: () => this.close(),
+            key: Clutter.KEY_Escape,
+        });
+    }
+
+    _clearContent() {
+        for (const child of this._contentBox.get_children())
+            child.destroy();
+    }
+
+    _addSectionTitle(text) {
+        this._contentBox.add_child(new St.Label({
+            text,
+            style_class: 'ba-vreme-details-section-title',
+            x_align: Clutter.ActorAlign.START,
+        }));
+    }
+
+    _addInfoRow(label, value) {
+        const row = new St.BoxLayout({
+            style_class: 'ba-vreme-details-row',
+            x_expand: true,
+        });
+
+        const keyLabel = new St.Label({
+            text: `${label}:`,
+            style_class: 'ba-vreme-details-key',
+            x_align: Clutter.ActorAlign.START,
+        });
+
+        const valueLabel = new St.Label({
+            text: value,
+            style_class: 'ba-vreme-details-value',
+            x_expand: true,
+            x_align: Clutter.ActorAlign.START,
+        });
+
+        valueLabel.clutter_text.set_line_wrap(true);
+        row.add_child(keyLabel);
+        row.add_child(valueLabel);
+        this._contentBox.add_child(row);
+    }
+
+    _addForecastRows(forecast, tempUnit) {
+        this._addSectionTitle('3-day outlook');
+
+        for (let i = 0; i < forecast.length; i++) {
+            const day = forecast[i];
+            const dayLabel = formatForecastLabel(day?.date, i);
+            const summary = day?.summary ?? 'unavailable';
+            const rainChance = formatPercentage(day?.precipitationProbabilityMax);
+            const uvMax = formatUvIndex(day?.uvIndexMax);
+
+            const row = new St.BoxLayout({
+                style_class: 'ba-vreme-forecast-row',
+                x_expand: true,
+            });
+
+            const icon = new St.Icon({
+                icon_name: day?.icon ?? 'weather-severe-alert-symbolic',
+                style_class: 'ba-vreme-forecast-icon',
+            });
+
+            const textBox = new St.BoxLayout({
+                vertical: true,
+                x_expand: true,
+            });
+
+            const titleLabel = new St.Label({
+                text: `${dayLabel}: ${summary}`,
+                style_class: 'ba-vreme-forecast-day-title',
+                x_align: Clutter.ActorAlign.START,
+                x_expand: true,
+            });
+            titleLabel.clutter_text.set_line_wrap(true);
+
+            const detailLabel = new St.Label({
+                text: `${formatTempWithUnit(day?.min, tempUnit)} \u2013 ${formatTempWithUnit(day?.max, tempUnit)}, rain ${rainChance}, UV ${uvMax}`,
+                style_class: 'ba-vreme-forecast-day-detail',
+                x_align: Clutter.ActorAlign.START,
+                x_expand: true,
+            });
+            detailLabel.clutter_text.set_line_wrap(true);
+
+            textBox.add_child(titleLabel);
+            textBox.add_child(detailLabel);
+            row.add_child(icon);
+            row.add_child(textBox);
+            this._contentBox.add_child(row);
+        }
+    }
+
+    _addHourlyRows(hourlyToday, tempUnit, windUnit) {
+        this._addSectionTitle('Hourly forecast (today)');
+
+        if (!hourlyToday || hourlyToday.length === 0) {
+            this._contentBox.add_child(new St.Label({
+                text: 'Hourly data unavailable for the selected day.',
+                style_class: 'ba-vreme-details-list-item',
+                x_align: Clutter.ActorAlign.START,
+            }));
+            return;
+        }
+
+        for (const hour of hourlyToday) {
+            const row = new St.BoxLayout({
+                style_class: 'ba-vreme-hourly-row',
+                x_expand: true,
+            });
+
+            const icon = new St.Icon({
+                icon_name: hour.icon ?? 'weather-severe-alert-symbolic',
+                style_class: 'ba-vreme-hourly-icon',
+            });
+
+            const textBox = new St.BoxLayout({
+                vertical: true,
+                x_expand: true,
+            });
+
+            const titleLabel = new St.Label({
+                text: `${hour.shortTime ?? formatClockTime(hour.time)}  ${hour.summary ?? 'Unknown'}`,
+                style_class: 'ba-vreme-hourly-title',
+                x_align: Clutter.ActorAlign.START,
+                x_expand: true,
+            });
+            titleLabel.clutter_text.set_line_wrap(true);
+
+            const detailsLabel = new St.Label({
+                text:
+                    `${formatTempWithUnit(hour.temperature, tempUnit)} ` +
+                    `(feels ${formatTempWithUnit(hour.feelsLike, tempUnit)}), ` +
+                    `rain ${formatPercentage(hour.precipitationProbability)}, ` +
+                    `wind ${formatWindWithUnit(hour.windSpeed, windUnit)}, ` +
+                    `humidity ${formatPercentage(hour.humidity)}, ` +
+                    `cloud ${formatPercentage(hour.cloudCover)}, ` +
+                    `pressure ${formatPressure(hour.pressureMsl)}, ` +
+                    `UV ${formatUvIndex(hour.uvIndex)}`,
+                style_class: 'ba-vreme-hourly-value',
+                x_align: Clutter.ActorAlign.START,
+                x_expand: true,
+            });
+            detailsLabel.clutter_text.set_line_wrap(true);
+
+            textBox.add_child(titleLabel);
+            textBox.add_child(detailsLabel);
+            row.add_child(icon);
+            row.add_child(textBox);
+            this._contentBox.add_child(row);
+        }
+    }
+
+    present(data, statusText = '') {
+        this._clearContent();
+
+        const locationName = data?.locationName ?? 'Weather details';
+        this._contentBox.add_child(new St.Label({
+            text: locationName,
+            style_class: 'ba-vreme-details-title',
+            x_align: Clutter.ActorAlign.START,
+        }));
+
+        this._contentBox.add_child(new St.Label({
+            text: 'Full-day weather overview',
+            style_class: 'ba-vreme-details-subtitle',
+            x_align: Clutter.ActorAlign.START,
+        }));
+
+        const currentConditionIcon = data?.current?.icon ?? 'weather-severe-alert-symbolic';
+        const headerBox = new St.BoxLayout({
+            style_class: 'ba-vreme-details-header',
+            x_expand: true,
+            x_align: Clutter.ActorAlign.CENTER,
+        });
+        headerBox.add_child(new St.Icon({
+            icon_name: currentConditionIcon,
+            style_class: 'ba-vreme-details-main-icon',
+        }));
+        this._contentBox.add_child(headerBox);
+
+        if (!data) {
+            this._contentBox.add_child(new St.Label({
+                text: 'No weather data available yet. Please refresh weather first.',
+                style_class: 'ba-vreme-details-list-item',
+                x_align: Clutter.ActorAlign.START,
+            }));
+
+            if (statusText) {
+                this._contentBox.add_child(new St.Label({
+                    text: `Status: ${statusText}`,
+                    style_class: 'ba-vreme-details-list-item',
+                    x_align: Clutter.ActorAlign.START,
+                }));
+            }
+
+            return;
+        }
+
+        const current = data.current ?? {};
+        const forecast = Array.isArray(data.forecast) ? data.forecast : [];
+        const today = forecast[0] ?? {};
+        const details = data.details ?? {};
+        const tempUnit = data.units?.temperature ?? 'C';
+        const windUnit = data.units?.windSpeed ?? 'km/h';
+
+        this._addSectionTitle('Current conditions');
+        this._addInfoRow('Condition', current.summary ?? 'unavailable');
+        this._addInfoRow('Temperature', formatTempWithUnit(current.temperature, tempUnit));
+        this._addInfoRow('Feels like', formatTempWithUnit(current.feelsLike, tempUnit));
+        this._addInfoRow('Today range', `${formatTempWithUnit(today.min, tempUnit)} to ${formatTempWithUnit(today.max, tempUnit)}`);
+        this._addInfoRow('Wind', formatWindWithUnit(current.windSpeed, windUnit));
+        this._addInfoRow('Wind gusts', formatWindWithUnit(current.windGusts, windUnit));
+        this._addInfoRow('Humidity', formatPercentage(current.relativeHumidity));
+        this._addInfoRow('Cloud cover', formatPercentage(current.cloudCover));
+        this._addInfoRow('Pressure (MSL)', formatPressure(current.pressureMsl));
+        this._addInfoRow('Precipitation now', formatPrecipitation(current.precipitation));
+        this._addInfoRow('UV index now', formatUvIndex(current.uvIndex));
+        this._addInfoRow('Sunrise', formatClockTime(details.sunrise));
+        this._addInfoRow('Sunset', formatClockTime(details.sunset));
+        this._addInfoRow('Max rain chance today', formatPercentage(details.precipitationProbabilityMax));
+        this._addInfoRow('Max UV today', formatUvIndex(details.uvIndexMax));
+        this._addInfoRow('Timezone', details.timezone ?? 'unknown');
+
+        this._addForecastRows(forecast, tempUnit);
+        this._addHourlyRows(details.hourlyToday, tempUnit, windUnit);
+
+        this._addSectionTitle('Data status');
+        this._addInfoRow('Updated', formatUpdatedTimestamp(data.refreshedAt || current.time));
+        this._addInfoRow('Status', statusText || 'OK');
+    }
+});
+
 const WeatherIndicator = GObject.registerClass(
 class WeatherIndicator extends PanelMenu.Button {
     _init(extension) {
@@ -145,6 +446,8 @@ class WeatherIndicator extends PanelMenu.Button {
         this._refreshSourceId = 0;
         this._refreshInProgress = false;
         this._refreshQueued = false;
+        this._latestWeatherData = null;
+        this._detailsDialog = null;
 
         this._session = new Soup.Session({
             timeout: 15,
@@ -188,7 +491,13 @@ class WeatherIndicator extends PanelMenu.Button {
     }
 
     _buildMenu() {
-        this._locationItem = this._makeReadonlyItem('Location: loading...');
+        this._locationItem = new PopupMenu.PopupMenuItem('Location: loading...');
+        this._locationItem.add_style_class_name('ba-vreme-location-action');
+        this._locationItem.connect('activate', () => {
+            this._openDetailsDialog();
+        });
+        this.menu.addMenuItem(this._locationItem);
+
         this._summaryItem = this._makeReadonlyItem('Condition: loading...');
         this._tempItem = this._makeReadonlyItem('Temperature: --');
         this._rangeItem = this._makeReadonlyItem('Today range: --');
@@ -231,6 +540,32 @@ class WeatherIndicator extends PanelMenu.Button {
 
         this.menu.addMenuItem(item);
         return item;
+    }
+
+    _openDetailsDialog() {
+        const statusText = this._statusItem.label.text.replace(/^Status:\s*/, '');
+        this.menu.close();
+
+        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            try {
+                const dialog = new WeatherDetailsDialog();
+                dialog.connect('destroy', () => {
+                    if (this._detailsDialog === dialog)
+                        this._detailsDialog = null;
+                });
+
+                this._detailsDialog = dialog;
+                dialog.present(this._latestWeatherData, statusText);
+                const opened = dialog.open();
+                if (!opened)
+                    Main.notify('baVreme', 'Weather details window could not be opened.');
+            } catch (error) {
+                log(`[ba-vreme] Failed to open details dialog: ${error}`);
+                Main.notify('baVreme', 'Failed to open weather details window.');
+            }
+
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     _watchSettings() {
@@ -386,8 +721,9 @@ class WeatherIndicator extends PanelMenu.Button {
             longitude: location.longitude,
             timezone: location.timezone,
             forecast_days: 3,
-            current: 'temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day',
-            daily: 'weather_code,temperature_2m_min,temperature_2m_max',
+            current: 'temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_gusts_10m,cloud_cover,pressure_msl,precipitation,uv_index,is_day',
+            daily: 'weather_code,temperature_2m_min,temperature_2m_max,sunrise,sunset,precipitation_probability_max,uv_index_max',
+            hourly: 'temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,weather_code,wind_speed_10m,cloud_cover,pressure_msl,uv_index',
             temperature_unit: isMetric ? 'celsius' : 'fahrenheit',
             windspeed_unit: isMetric ? 'kmh' : 'mph',
         })}`;
@@ -395,6 +731,7 @@ class WeatherIndicator extends PanelMenu.Button {
         const forecastResponse = await this._fetchJson(forecastUrl);
         const current = forecastResponse?.current;
         const daily = forecastResponse?.daily;
+        const hourly = forecastResponse?.hourly;
 
         if (!current)
             throw new Error('Current weather data missing in provider response');
@@ -408,31 +745,103 @@ class WeatherIndicator extends PanelMenu.Button {
         const dailyCodes = Array.isArray(daily.weather_code) ? daily.weather_code : [];
         const dailyMin = Array.isArray(daily.temperature_2m_min) ? daily.temperature_2m_min : [];
         const dailyMax = Array.isArray(daily.temperature_2m_max) ? daily.temperature_2m_max : [];
+        const dailySunrise = Array.isArray(daily.sunrise) ? daily.sunrise : [];
+        const dailySunset = Array.isArray(daily.sunset) ? daily.sunset : [];
+        const dailyPrecipitationProbabilityMax = Array.isArray(daily.precipitation_probability_max)
+            ? daily.precipitation_probability_max
+            : [];
+        const dailyUvIndexMax = Array.isArray(daily.uv_index_max) ? daily.uv_index_max : [];
+
+        const hourlyTimes = Array.isArray(hourly?.time) ? hourly.time : [];
+        const hourlyTemperature = Array.isArray(hourly?.temperature_2m) ? hourly.temperature_2m : [];
+        const hourlyFeelsLike = Array.isArray(hourly?.apparent_temperature) ? hourly.apparent_temperature : [];
+        const hourlyHumidity = Array.isArray(hourly?.relative_humidity_2m) ? hourly.relative_humidity_2m : [];
+        const hourlyPrecipitationProbability = Array.isArray(hourly?.precipitation_probability)
+            ? hourly.precipitation_probability
+            : [];
+        const hourlyWeatherCode = Array.isArray(hourly?.weather_code) ? hourly.weather_code : [];
+        const hourlyWindSpeed = Array.isArray(hourly?.wind_speed_10m) ? hourly.wind_speed_10m : [];
+        const hourlyCloudCover = Array.isArray(hourly?.cloud_cover) ? hourly.cloud_cover : [];
+        const hourlyPressure = Array.isArray(hourly?.pressure_msl) ? hourly.pressure_msl : [];
+        const hourlyUvIndex = Array.isArray(hourly?.uv_index) ? hourly.uv_index : [];
 
         const forecast = dailyTimes.slice(0, 3).map((date, index) => {
             const condition = openMeteoCondition(dailyCodes[index], true);
             return {
                 date,
                 summary: condition.summary,
+                icon: condition.icon,
                 min: dailyMin[index],
                 max: dailyMax[index],
+                sunrise: dailySunrise[index],
+                sunset: dailySunset[index],
+                precipitationProbabilityMax: dailyPrecipitationProbabilityMax[index],
+                uvIndexMax: dailyUvIndexMax[index],
             };
         });
+
+        const todayDate = dailyTimes[0];
+        const hourlyToday = [];
+
+        for (let index = 0; index < hourlyTimes.length; index++) {
+            const timestamp = hourlyTimes[index];
+            if (typeof timestamp !== 'string' || !timestamp.startsWith(`${todayDate}T`))
+                continue;
+
+            const hour = Number.parseInt(timestamp.slice(11, 13), 10);
+            const isDay = Number.isFinite(hour) ? hour >= 6 && hour < 20 : true;
+            const condition = openMeteoCondition(hourlyWeatherCode[index], isDay);
+
+            hourlyToday.push({
+                time: timestamp,
+                shortTime: timestamp.length >= 16 ? timestamp.slice(11, 16) : timestamp,
+                summary: condition.summary,
+                icon: condition.icon,
+                temperature: hourlyTemperature[index],
+                feelsLike: hourlyFeelsLike[index],
+                humidity: hourlyHumidity[index],
+                precipitationProbability: hourlyPrecipitationProbability[index],
+                windSpeed: hourlyWindSpeed[index],
+                cloudCover: hourlyCloudCover[index],
+                pressureMsl: hourlyPressure[index],
+                uvIndex: hourlyUvIndex[index],
+            });
+
+            if (hourlyToday.length >= 24)
+                break;
+        }
 
         const currentCondition = openMeteoCondition(current.weather_code, current.is_day !== 0);
 
         return {
             locationName: formatPanelLocationName(location.name, location.countryCode),
+            units: {
+                temperature: this._unitLabel(),
+                windSpeed: this._windLabel(),
+            },
             current: {
                 summary: currentCondition.summary,
                 icon: currentCondition.icon,
                 temperature: current.temperature_2m,
                 feelsLike: current.apparent_temperature,
                 windSpeed: current.wind_speed_10m,
+                windGusts: current.wind_gusts_10m,
                 relativeHumidity: current.relative_humidity_2m,
+                cloudCover: current.cloud_cover,
+                pressureMsl: current.pressure_msl,
+                precipitation: current.precipitation,
+                uvIndex: current.uv_index,
                 time: current.time,
             },
             forecast,
+            details: {
+                timezone: forecastResponse?.timezone ?? location.timezone,
+                sunrise: dailySunrise[0],
+                sunset: dailySunset[0],
+                precipitationProbabilityMax: dailyPrecipitationProbabilityMax[0],
+                uvIndexMax: dailyUvIndexMax[0],
+                hourlyToday,
+            },
             refreshedAt: new Date().toISOString(),
         };
     }
@@ -456,6 +865,8 @@ class WeatherIndicator extends PanelMenu.Button {
         const forecast = data.forecast;
         const showLocation = this._showLocationInPanel();
 
+        this._latestWeatherData = data;
+
         this._icon.icon_name = current.icon;
         this._temperatureLabel.text = this._formatCompactTemp(current.temperature);
         this._preferencesItem.label.text = 'Open settings';
@@ -465,7 +876,7 @@ class WeatherIndicator extends PanelMenu.Button {
         const minToday = forecast[0]?.min;
         const maxToday = forecast[0]?.max;
 
-        this._locationItem.label.text = `Location: ${data.locationName}`;
+        this._locationItem.label.text = `Location: ${data.locationName} (click for full-day details)`;
         this._summaryItem.label.text = `Condition: ${current.summary}`;
         this._tempItem.label.text =
             `Temperature: ${this._formatTemp(current.temperature)} (feels like ${this._formatTemp(current.feelsLike)})`;
@@ -483,12 +894,16 @@ class WeatherIndicator extends PanelMenu.Button {
         const message = error?.message ?? String(error);
         const missingLocation = message.startsWith('Location not configured');
 
+        this._latestWeatherData = null;
+
         this._icon.icon_name = 'weather-severe-alert-symbolic';
         this._temperatureLabel.text = '--';
         this._locationLabel.text = '';
         this._locationLabel.visible = false;
 
-        this._locationItem.label.text = missingLocation ? 'Location: not configured' : 'Location: unavailable';
+        this._locationItem.label.text = missingLocation
+            ? 'Location: not configured (click for details)'
+            : 'Location: unavailable (click for details)';
         this._summaryItem.label.text = missingLocation ? 'Condition: choose a location in settings' : 'Condition: unavailable';
         this._tempItem.label.text = 'Temperature: unavailable';
         this._rangeItem.label.text = 'Today range: unavailable';
@@ -538,6 +953,22 @@ class WeatherIndicator extends PanelMenu.Button {
     destroy() {
         this._disconnectSettings();
         this._clearRefreshTimer();
+
+        if (this._detailsDialog) {
+            try {
+                this._detailsDialog.close();
+            } catch (error) {
+                log(`[ba-vreme] Failed to close details dialog during destroy: ${error}`);
+            }
+
+            try {
+                this._detailsDialog.destroy();
+            } catch (error) {
+                log(`[ba-vreme] Failed to destroy details dialog during destroy: ${error}`);
+            }
+
+            this._detailsDialog = null;
+        }
 
         if (this._session) {
             this._session.abort();

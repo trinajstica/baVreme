@@ -3,3 +3,103 @@
     text-align: right;
     font-weight: 600;
 }
+
+.ba-vreme-location-action {
+    font-weight: 600;
+}
+
+.ba-vreme-details-dialog {
+    width: 56em;
+}
+
+.ba-vreme-details-scrollview {
+    max-height: 36em;
+}
+
+.ba-vreme-details-content {
+    spacing: 8px;
+    padding: 8px 4px;
+    min-width: 50em;
+}
+
+.ba-vreme-details-title {
+    font-size: 1.2em;
+    font-weight: 700;
+}
+
+.ba-vreme-details-subtitle {
+    opacity: 0.9;
+    margin-bottom: 4px;
+}
+
+.ba-vreme-details-section-title {
+    margin-top: 8px;
+    font-weight: 700;
+}
+
+.ba-vreme-details-row {
+    spacing: 10px;
+}
+
+.ba-vreme-details-key {
+    min-width: 12em;
+    font-weight: 600;
+}
+
+.ba-vreme-details-value {
+    opacity: 0.95;
+}
+
+.ba-vreme-details-list-item {
+    padding: 2px 0;
+}
+
+.ba-vreme-details-header {
+    padding: 12px 0 8px;
+}
+
+.ba-vreme-details-main-icon {
+    icon-size: 72px;
+}
+
+.ba-vreme-forecast-row {
+    spacing: 10px;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ba-vreme-forecast-icon {
+    icon-size: 28px;
+    margin-top: 2px;
+}
+
+.ba-vreme-forecast-day-title {
+    font-weight: 600;
+}
+
+.ba-vreme-forecast-day-detail {
+    opacity: 0.85;
+    font-size: 0.92em;
+}
+
+.ba-vreme-hourly-row {
+    spacing: 8px;
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ba-vreme-hourly-icon {
+    icon-size: 28px;
+    margin-top: 2px;
+}
+
+.ba-vreme-hourly-title {
+    font-weight: 600;
+    min-width: 0;
+}
+
+.ba-vreme-hourly-value {
+    opacity: 0.85;
+    font-size: 0.92em;
+    min-width: 0;
+}
