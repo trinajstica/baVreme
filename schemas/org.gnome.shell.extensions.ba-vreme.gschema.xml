@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.ba-vreme" path="/org/gnome/shell/extensions/ba-vreme/">
+    <key name="city" type="s">
+      <default>'Postojna'</default>
+      <summary>City name for weather lookup</summary>
+      <description>Example values: Postojna, Ljubljana, London.</description>
+    </key>
+
+    <key name="country-code" type="s">
+      <default>'SI'</default>
+      <summary>Optional 2-letter country code</summary>
+      <description>Use ISO country code like SI, DE, IT. Empty means auto pick.</description>
+    </key>
+
+    <key name="location-name" type="s">
+      <default>''</default>
+      <summary>Selected location label</summary>
+      <description>Human-friendly label saved from the location search result.</description>
+    </key>
+
+    <key name="latitude" type="s">
+      <default>''</default>
+      <summary>Selected location latitude</summary>
+      <description>Latitude saved from the chosen search result. Empty means resolve by city name.</description>
+    </key>
+
+    <key name="longitude" type="s">
+      <default>''</default>
+      <summary>Selected location longitude</summary>
+      <description>Longitude saved from the chosen search result. Empty means resolve by city name.</description>
+    </key>
+
+    <key name="timezone" type="s">
+      <default>''</default>
+      <summary>Selected location timezone</summary>
+      <description>Timezone saved from the chosen search result. Empty means automatic provider timezone.</description>
+    </key>
+
+    <key name="units" type="s">
+      <choices>
+        <choice value='metric'/>
+        <choice value='imperial'/>
+      </choices>
+      <default>'metric'</default>
+      <summary>Displayed unit system</summary>
+      <description>Metric uses Celsius and km/h, imperial uses Fahrenheit and mph.</description>
+    </key>
+
+    <key name="refresh-minutes" type="i">
+      <range min="5" max="180"/>
+      <default>15</default>
+      <summary>Refresh interval</summary>
+      <description>How often the extension refreshes weather data.</description>
+    </key>
+
+    <key name="show-location-in-panel" type="b">
+      <default>false</default>
+      <summary>Show location in top bar</summary>
+      <description>Display the current location name before the weather icon in the panel.</description>
+    </key>
+
+    <key name="panel-position" type="s">
+      <choices>
+        <choice value='left'/>
+        <choice value='center'/>
+        <choice value='right'/>
+      </choices>
+      <default>'right'</default>
+      <summary>Top bar section for weather indicator</summary>
+      <description>Choose where to show weather in panel: left, center, or right.</description>
+    </key>
+  </schema>
+</schemalist>

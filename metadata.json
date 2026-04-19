@@ -1,0 +1,9 @@
+{
+  "uuid": "ba-vreme@barko.generacija.si",
+  "name": "baVreme",
+  "description": "Weather in the GNOME top bar using Open-Meteo APIs (no registration).",
+  "version": 1,
+  "shell-version": ["45", "46", "47", "48", "49", "50"],
+  "settings-schema": "org.gnome.shell.extensions.ba-vreme",
+  "url": "mailto:barko@generacija.si"
+}

@@ -1,0 +1,21 @@
+# Compiled GNOME schema
+schemas/gschemas.compiled
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor and backup files
+*.swp
+*~
+*.bak
+*.orig
+*.tmp
+
+# IDE settings
+.idea/
+.vscode/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
