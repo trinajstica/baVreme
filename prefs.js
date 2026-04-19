@@ -15,9 +15,23 @@ function buildQuery(params) {
 }
 
 function formatLocationChoice(result) {
-    return [result.name, result.admin1, result.country]
+    const location = [result.name, result.admin1, result.country]
         .filter(value => typeof value === 'string' && value.trim().length > 0)
         .join(', ');
+
+    const coords = typeof result.latitude === 'number' && typeof result.longitude === 'number'
+        ? `${result.latitude.toFixed(4)}, ${result.longitude.toFixed(4)}`
+        : null;
+
+    const elevation = typeof result.elevation === 'number'
+        ? `${Math.round(result.elevation)} m`
+        : null;
+
+    const details = [coords, elevation]
+        .filter(Boolean)
+        .join(' • ');
+
+    return details.length > 0 ? `${location} — ${details}` : location;
 }
 
 function formatSavedLocationName(name, countryCode) {
@@ -85,6 +99,13 @@ export default class BaVremePreferences extends ExtensionPreferences {
         let selectedLocationRow;
         let clearLocationButton;
 
+        const formatResultSubtitle = result => {
+            if (!result)
+                return '';
+
+            return formatLocationChoice(result);
+        };
+
         const clearResolvedLocation = () => {
             settings.set_string('location-name', '');
             settings.set_string('latitude', '');
@@ -108,12 +129,20 @@ export default class BaVremePreferences extends ExtensionPreferences {
             clearLocationButton.set_sensitive(hasLocation);
             useResultButton.set_sensitive(searchResults.length > 0);
             resultsRow.visible = searchResults.length > 0;
+
+            if (searchResults.length > 0) {
+                const selectedIndex = Math.max(0, Math.min(searchResults.length - 1, resultsRow.selected));
+                resultsRow.subtitle = formatResultSubtitle(searchResults[selectedIndex]);
+            } else {
+                resultsRow.subtitle = '';
+            }
         };
 
         const resetSearchResults = () => {
             searchResults = [];
             resultsRow.model = Gtk.StringList.new([]);
             resultsRow.selected = 0;
+            resultsRow.subtitle = '';
             updateSearchState();
         };
 
@@ -176,6 +205,11 @@ export default class BaVremePreferences extends ExtensionPreferences {
                 })}`);
 
                 searchResults = Array.isArray(response?.results) ? response.results : [];
+                searchResults = searchResults.filter(result =>
+                    typeof result.latitude === 'number' &&
+                    typeof result.longitude === 'number'
+                );
+
                 if (searchResults.length === 0) {
                     searchStatusRow.title = 'No matches found';
                     searchStatusRow.subtitle = 'Try a more specific city, region, or country name.';
@@ -256,8 +290,13 @@ export default class BaVremePreferences extends ExtensionPreferences {
 
         resultsRow = new Adw.ComboRow({
             title: 'Matches',
+            subtitle: '',
             model: Gtk.StringList.new([]),
             visible: false,
+        });
+
+        resultsRow.connect('notify::selected', () => {
+            updateSearchState();
         });
 
         useResultButton = new Gtk.Button({
