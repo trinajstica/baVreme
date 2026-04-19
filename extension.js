@@ -90,6 +90,19 @@ function formatNumber(value) {
     return `${Math.round(value)}`;
 }
 
+function formatUpdatedTimestamp(value) {
+    if (!value)
+        return 'unknown';
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime()))
+        return value;
+
+    const localDate = date.toLocaleDateString(undefined);
+    const localTime = date.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'});
+    return `${localDate} ${localTime}`;
+}
+
 function parseCoordinate(value) {
     const parsedValue = Number.parseFloat(value);
     return Number.isFinite(parsedValue) ? parsedValue : null;
@@ -191,14 +204,6 @@ class WeatherIndicator extends PanelMenu.Button {
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
         this._updatedItem = this._makeReadonlyItem('Updated: --');
         this._statusItem = this._makeReadonlyItem('Status: fetching weather data...');
-
-        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        this._aboutTitleItem = this._makeReadonlyItem('About:');
-        this._aboutAuthorItem = this._makeReadonlyItem('Author: BArko, 2026');
-        this._aboutProgrammerItem = this._makeReadonlyItem('Programmer: SimOne');
-        this._aboutVersionItem = this._makeReadonlyItem('Version: 1.00');
-
-        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         this._preferencesItem = new PopupMenu.PopupMenuItem('Open settings');
         this._preferencesItem.connect('activate', () => {
@@ -468,7 +473,7 @@ class WeatherIndicator extends PanelMenu.Button {
         this._windItem.label.text = `Wind: ${formatNumber(current.windSpeed)} ${this._windLabel()}`;
         this._humidityItem.label.text = `Humidity: ${formatNumber(current.relativeHumidity)}%`;
         this._applyForecastData(forecast);
-        this._updatedItem.label.text = `Updated: ${current.time ?? 'unknown'}`;
+        this._updatedItem.label.text = `Updated: ${formatUpdatedTimestamp(current.time)}`;
         this._setStatus('OK');
     }
 
