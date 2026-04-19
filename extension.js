@@ -433,6 +433,7 @@ class WeatherIndicator extends PanelMenu.Button {
                 time: current.time,
             },
             forecast,
+            refreshedAt: new Date().toISOString(),
         };
     }
 
@@ -473,7 +474,8 @@ class WeatherIndicator extends PanelMenu.Button {
         this._windItem.label.text = `Wind: ${formatNumber(current.windSpeed)} ${this._windLabel()}`;
         this._humidityItem.label.text = `Humidity: ${formatNumber(current.relativeHumidity)}%`;
         this._applyForecastData(forecast);
-        this._updatedItem.label.text = `Updated: ${formatUpdatedTimestamp(current.time)}`;
+        const updatedTimestamp = data.refreshedAt || current.time;
+        this._updatedItem.label.text = `Updated: ${formatUpdatedTimestamp(updatedTimestamp)}`;
         this._setStatus('OK');
     }
 
@@ -504,8 +506,13 @@ class WeatherIndicator extends PanelMenu.Button {
     async _refreshWeather(manual = false) {
         if (this._refreshInProgress) {
             this._refreshQueued = true;
+            if (manual)
+                this._resetRefreshTimer();
             return;
         }
+
+        if (manual)
+            this._resetRefreshTimer();
 
         this._refreshInProgress = true;
         this._refreshItem.setSensitive(false);
