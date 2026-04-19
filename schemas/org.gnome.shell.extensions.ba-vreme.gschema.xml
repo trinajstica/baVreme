@@ -2,9 +2,9 @@
 <schemalist>
   <schema id="org.gnome.shell.extensions.ba-vreme" path="/org/gnome/shell/extensions/ba-vreme/">
     <key name="city" type="s">
-      <default>'Postojna'</default>
+      <default>''</default>
       <summary>City name for weather lookup</summary>
-      <description>Example values: Postojna, Ljubljana, London.</description>
+      <description>Example values: Ljubljana, London, New York.</description>
     </key>
 
     <key name="country-code" type="s">

@@ -20,7 +20,7 @@ This extension uses Open-Meteo geocoding + forecast services:
 
 ## Default setup
 
-- City: Postojna
+- City: (none)
 - Country code: SI
 - Units: Metric
 - Refresh interval: 15 min
