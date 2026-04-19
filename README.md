@@ -8,7 +8,6 @@ This extension uses Open-Meteo geocoding + forecast services:
 - Free to use
 - No registration
 - No API key
-- Includes Postojna, Slovenia
 
 ## Features
 
