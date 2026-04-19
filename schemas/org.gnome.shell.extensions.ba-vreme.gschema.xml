@@ -8,7 +8,7 @@
     </key>
 
     <key name="country-code" type="s">
-      <default>'SI'</default>
+      <default>''</default>
       <summary>Optional 2-letter country code</summary>
       <description>Use ISO country code like SI, DE, IT. Empty means auto pick.</description>
     </key>

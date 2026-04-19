@@ -21,7 +21,7 @@ This extension uses Open-Meteo geocoding + forecast services:
 ## Default setup
 
 - City: (none)
-- Country code: SI
+- Country code: (none)
 - Units: Metric
 - Refresh interval: 15 min
 - Panel position: Right
