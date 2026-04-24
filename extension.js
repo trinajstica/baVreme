@@ -333,7 +333,19 @@ class WeatherDetailsDialog extends ModalDialog.ModalDialog {
             return;
         }
 
-        for (const hour of hourlyToday) {
+        let visibleHours = hourlyToday;
+        if (currentHourLabel) {
+            const startIndex = hourlyToday.findIndex(hour => hour.time.startsWith(currentHourLabel));
+            if (startIndex >= 0) {
+                visibleHours = hourlyToday.slice(startIndex);
+            } else {
+                visibleHours = hourlyToday.filter(hour => hour.time >= currentHourLabel);
+                if (visibleHours.length === 0)
+                    visibleHours = hourlyToday.slice(-1);
+            }
+        }
+
+        for (const hour of visibleHours) {
             const isCurrentHour = currentHourLabel && hour.time.startsWith(currentHourLabel);
             const row = new St.BoxLayout({
                 style_class: 'ba-vreme-hourly-row',
