@@ -500,7 +500,10 @@ class WeatherIndicator extends PanelMenu.Button {
         this._watchSettings();
 
         this._resetRefreshTimer();
-        this._refreshWeather();
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+            this._refreshWeather();
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     _buildIndicator() {
